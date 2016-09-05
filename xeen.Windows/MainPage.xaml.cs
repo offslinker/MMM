@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics.Contracts;
+using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Storage.Pickers;
 using Windows.UI.Xaml.Controls;
@@ -23,46 +25,47 @@ namespace xeen
         private async void Button_Tapped(object sender, TappedRoutedEventArgs e)
         {
             FileOpenPicker picker = new FileOpenPicker();
+            picker.FileTypeFilter.Add("*");
             var file = await picker.PickSingleFileAsync();
             if (file != null)
             {
                 var buffer = await Windows.Storage.FileIO.ReadBufferAsync(file);
-                var ccFile = new byte[buffer.Length];
-                buffer.CopyTo(ccFile);
                 fl = new CCFileLoader();
-                fl.LoadFile(ccFile);
+                fl.LoadFile(buffer.AsStream());
+                fl.FileLoaded += OnFileLoaded;
             }
+        }
+
+        protected async void OnFileLoaded(object obj, EventArgs e)
+        {
+            FileOpenPicker picker = new FileOpenPicker();
+            picker.FileTypeFilter.Add("*");
+            await picker.PickSingleFileAsync();
         }
 
         public class CCFileLoader
         {
             public CCFileLoader()
             {
-
+                
             }
 
             private const int InitialShift = 0xac;
             private const int ShiftStep = 0x67;
 
-            public void LoadFile(byte[] rawToc)
+            public void LoadFile(Stream stream)
             {
-                for (int i = 0; i < rawToc.Length; i++)
+                BinaryReader reader = new BinaryReader(stream);
+                int fileCount = reader.ReadInt16(); 
+
+                for (int i = 0; i < fileCount; i++)
                 {
-                    var currentByte = rawToc[i];
-                    rawToc[i] = DecryptByte(i, currentByte);
+                    //reader.ReadByte()
+                    byte lastByte = 0;
+                    Contract.Requires(lastByte == 0);
+
                 }
-
-
-
-                OnFileLoaded(EventArgs.Empty);
-            }
-
-            protected virtual void OnFileLoaded(EventArgs e)
-            {
-               if (FileLoaded != null)
-                { 
-                    FileLoaded(this, e);
-                }
+                FileLoaded?.Invoke(this, EventArgs.Empty);
             }
 
             public event EventHandler FileLoaded;
@@ -72,6 +75,7 @@ namespace xeen
                 int ah = InitialShift + i * 8 * ShiftStep & 0xff;
                 return (byte)(((currentByte << 2 | currentByte >> 6) + ah) & 0xff);
             }
+
         }
     }
 }
